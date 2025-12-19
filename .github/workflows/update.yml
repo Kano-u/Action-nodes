@@ -1,0 +1,37 @@
+name: Update Nodes
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 每 6 小时自动运行一次
+  workflow_dispatch:      # 允许手动点击运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch and Process
+        run: |
+          # 1. 下载目标网页
+          curl -sSL "https://gitlab.com/zhifan999/fq/-/wikis/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" -o raw.txt
+          
+          # 2. 提取节点 (支持 vmess, vless, hy2, hysteria2)
+          grep -oE "(vmess|vless|hysteria2|hy2)://[^[:space:][:cntrl:]\"'<>]*" raw.txt > extracted.txt
+          
+          # 3. 去重排序
+          sort -u extracted.txt -o sorted.txt
+          
+          # 4. Base64 编码 (生成 v2rayN 识别的订阅格式)
+          if [ -s sorted.txt ]; then
+            base64 -w 0 sorted.txt > alvin_nodes.txt
+          fi
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Action"
+          git add alvin_nodes.txt
+          # 只有内容有变化才提交，防止死循环
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update nodes" && git push)
